@@ -8,7 +8,8 @@ param(
 # [ RUN STRING ]
 # 
 # Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Computer-Motivators/misc-scripts/main/custombackground.ps1'))
-# (Optional) -KeepCurrentWallpaper
+# (Optional) Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; $s="$env:TEMP\bg.ps1"; iwr 'https://raw.githubusercontent.com/Computer-Motivators/misc-scripts/main/custombackground.ps1' -OutFile $s; & $s -KeepCurrentWallpaper
+# 
 
 # Gather system information
 $hostname = $env:COMPUTERNAME
@@ -151,7 +152,7 @@ $averageBrightness = ($averageColor.R * 0.299) + ($averageColor.G * 0.587) + ($a
 if ($averageBrightness -ge $brightnessThreshold) {
     $brushColor = [System.Drawing.Color]::FromArgb(160, 0, 0, 0)  # Black with transparency
 } else {
-    $brushColor = [System.Drawing.Color]::FromArgb(160, 255, 255, 255)  # White with transparency
+    $brushColor = [System.Drawing.Color]::FromArgb(225, 255, 255, 255)  # White with transparency
 }
 
 # Draw the base image and logo only if they are successfully loaded
