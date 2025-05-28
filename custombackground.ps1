@@ -22,6 +22,7 @@ if (Test-Path "C:\Program Files\Computer_Motivators_Support_Client\Computer_Moti
 } else {
     $rustdeskId = "Not Installed"
 }
+$rustdeskId = $rustdeskId.Trim() # If there is an extra newline in the RustDesk ID, trim it
 
 # [ OPTIONS ]
 $skipHostnames = @("Server-Ignore") # Blacklisted computer hostnames
@@ -29,7 +30,7 @@ $baseWallpaperImage = "https://next.physcorp.com/s/w86T47ssbneXqYg/download/back
 $baseLogoImage = "https://next.physcorp.com/s/7rMNLtCMeJtN9nC/download/Long%20Logo%20Background%20Pill.png"
 # Define the text to overlay
 $supportEmail = "support@computermotivators.com"
-$supportLink = "computermotivators.com"
+$supportLink = "www.computermotivators.com"
 $supportPhone = "(210) PC-WIZRD"
 $text = @"
 === Computer Info ===
@@ -195,7 +196,7 @@ if ($image -and $baseLogo) {
     $stringFormat.LineAlignment = [System.Drawing.StringAlignment]::Near  # Aligns text at the top
 
     # Define the position for the text below the logo
-    $textPositionX = $screenWidth - 20  # Align text with a margin from the right
+    $textPositionX = $screenWidth - 40  # Align text with a margin from the right
     $textPositionY = $logoY + $logoHeight + 10  # Position text just below the logo with a margin
     $textPosition = New-Object System.Drawing.PointF($textPositionX, $textPositionY)
 
