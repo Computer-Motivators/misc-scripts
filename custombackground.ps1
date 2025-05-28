@@ -1,3 +1,10 @@
+param(
+    [switch]$KeepCurrentWallpaper
+)
+
+[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing") 
+[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") 
+
 # [ RUN STRING ]
 # 
 # Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Computer-Motivators/misc-scripts/main/custombackground.ps1'))
@@ -8,8 +15,6 @@ $hostname = $env:COMPUTERNAME
 $ipAddress = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -notlike '*Loopback*'} | Select-Object -ExpandProperty IPAddress -First 1)
 $macAddress = (Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | Select-Object -ExpandProperty MacAddress -First 1)
 $serialNumber = (Get-WmiObject -Class Win32_BIOS).SerialNumber
-$screenWidth = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize.Width
-$screenHeight = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize.Height
 
 # Add RustDesk ID system information
 if (Test-Path "C:\Program Files\Computer_Motivators_Support_Client\Computer_Motivators_Support_Client.exe") {
@@ -69,68 +74,92 @@ if ($baseLogoImage -match "^https?://") {
 }
 
 # Accept a script argument to keep the current wallpaper and just apply the overlay text
-param(
-    [switch]$KeepCurrentWallpaper
-)
-
 if ($KeepCurrentWallpaper) {
     $baseWallpaperImage = $transcodedWallpaper
+}
+
+# Replace [System.Windows.Forms.SystemInformation] with an alternative method to get screen dimensions
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class ScreenResolution {
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetrics(int nIndex);
+}
+"@
+$screenWidth = [ScreenResolution]::GetSystemMetrics(0)  # SM_CXSCREEN
+$screenHeight = [ScreenResolution]::GetSystemMetrics(1)  # SM_CYSCREEN
+
+# Add error handling for image loading
+if (-not (Test-Path $baseWallpaperImage)) {
+    Write-Error "Base wallpaper image not found: $baseWallpaperImage"
+    exit
+}
+
+if (-not (Test-Path $baseLogoImage)) {
+    Write-Error "Base logo image not found: $baseLogoImage"
+    exit
 }
 
 # Load the base image and create a new image with text using System.Drawing
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
+
+# Ensure resizedImage is initialized properly
+$resizedImage = New-Object System.Drawing.Bitmap($screenWidth, $screenHeight)
+$graphics = [System.Drawing.Graphics]::FromImage($resizedImage)
+
+# Draw the base image and logo only if they are successfully loaded
 $image = [System.Drawing.Image]::FromFile($baseWallpaperImage)
 $baseLogo = [System.Drawing.Image]::FromFile($baseLogoImage)
 
-# Resize image to screen resolution
-$resizedImage = New-Object System.Drawing.Bitmap($screenWidth, $screenHeight)
-$graphics = [System.Drawing.Graphics]::FromImage($resizedImage)
-$graphics.DrawImage($image, 0, 0, $screenWidth, $screenHeight)
+if ($image -and $baseLogo) {
+    $graphics.DrawImage($image, 0, 0, $screenWidth, $screenHeight)
 
-# Maintain aspect ratio for the logo and calculate scaled dimensions
-$logoMaxWidth = 160  # Maximum width for the logo
-$logoMaxHeight = 96  # Maximum height for the logo
-$logoAspectRatio = $baseLogo.Width / $baseLogo.Height
-if ($logoMaxWidth / $logoAspectRatio -le $logoMaxHeight) {
-    $logoWidth = $logoMaxWidth
-    $logoHeight = [int]($logoMaxWidth / $logoAspectRatio)
-} else {
-    $logoHeight = $logoMaxHeight
-    $logoWidth = [int]($logoMaxHeight * $logoAspectRatio)
+    # Maintain aspect ratio for the logo and calculate scaled dimensions
+    $logoMaxWidth = 160  # Maximum width for the logo
+    $logoMaxHeight = 96  # Maximum height for the logo
+    $logoAspectRatio = $baseLogo.Width / $baseLogo.Height
+    if ($logoMaxWidth / $logoAspectRatio -le $logoMaxHeight) {
+        $logoWidth = $logoMaxWidth
+        $logoHeight = [int]($logoMaxWidth / $logoAspectRatio)
+    } else {
+        $logoHeight = $logoMaxHeight
+        $logoWidth = [int]($logoMaxHeight * $logoAspectRatio)
+    }
+
+    # Set the logo position in the top-right corner
+    $logoX = $screenWidth - $logoWidth - 20  # Position with a margin from the right
+    $logoY = 20  # Position with a margin from the top
+
+    # Draw the logo with 50% opacity
+    $logoAttributes = New-Object System.Drawing.Imaging.ImageAttributes
+    $opacityMatrix = New-Object System.Drawing.Imaging.ColorMatrix
+    $opacityMatrix.Matrix33 = 0.5  # 50% opacity
+    $logoAttributes.SetColorMatrix($opacityMatrix, [System.Drawing.Imaging.ColorMatrixFlag]::Default, [System.Drawing.Imaging.ColorAdjustType]::Bitmap)
+    $graphics.DrawImage($baseLogo, [System.Drawing.Rectangle]::FromLTRB($logoX, $logoY, $logoX + $logoWidth, $logoY + $logoHeight), 0, 0, $baseLogo.Width, $baseLogo.Height, [System.Drawing.GraphicsUnit]::Pixel, $logoAttributes)
+
+    # Set text properties
+    $font = New-Object System.Drawing.Font("Consolas", 12, [System.Drawing.FontStyle]::Bold)  # Industrial-style font
+    $brushColor = [System.Drawing.Color]::FromArgb(160, 0, 0, 0)
+    $brush = New-Object System.Drawing.SolidBrush($brushColor)
+
+    # Create a StringFormat object for right-aligned text
+    $stringFormat = New-Object System.Drawing.StringFormat
+    $stringFormat.Alignment = [System.Drawing.StringAlignment]::Far  # Aligns text to the right
+    $stringFormat.LineAlignment = [System.Drawing.StringAlignment]::Near  # Aligns text at the top
+
+    # Define the position for the text below the logo
+    $textPositionX = $screenWidth - 20  # Align text with a margin from the right
+    $textPositionY = $logoY + $logoHeight + 10  # Position text just below the logo with a margin
+    $textPosition = New-Object System.Drawing.PointF($textPositionX, $textPositionY)
+
+    # Draw the text on the image using StringFormat for right-alignment
+    $graphics.DrawString($text, $font, $brush, $textPosition, $stringFormat)
 }
 
-# Set the logo position in the top-right corner
-$logoX = $screenWidth - $logoWidth - 20  # Position with a margin from the right
-$logoY = 20  # Position with a margin from the top
-
-# Draw the logo with 50% opacity
-$logoAttributes = New-Object System.Drawing.Imaging.ImageAttributes
-$opacityMatrix = New-Object System.Drawing.Imaging.ColorMatrix
-$opacityMatrix.Matrix33 = 0.5  # 50% opacity
-$logoAttributes.SetColorMatrix($opacityMatrix, [System.Drawing.Imaging.ColorMatrixFlag]::Default, [System.Drawing.Imaging.ColorAdjustType]::Bitmap)
-$graphics.DrawImage($baseLogo, [System.Drawing.Rectangle]::FromLTRB($logoX, $logoY, $logoX + $logoWidth, $logoY + $logoHeight), 0, 0, $baseLogo.Width, $baseLogo.Height, [System.Drawing.GraphicsUnit]::Pixel, $logoAttributes)
-
-# Set text properties
-$font = New-Object System.Drawing.Font("Consolas", 12, [System.Drawing.FontStyle]::Bold)  # Industrial-style font
-$brushColor = [System.Drawing.Color]::FromArgb(160, 0, 0, 0)
-$brush = New-Object System.Drawing.SolidBrush($brushColor)
-
-# Create a StringFormat object for right-aligned text
-$stringFormat = New-Object System.Drawing.StringFormat
-$stringFormat.Alignment = [System.Drawing.StringAlignment]::Far  # Aligns text to the right
-$stringFormat.LineAlignment = [System.Drawing.StringAlignment]::Near  # Aligns text at the top
-
-# Define the position for the text below the logo
-$textPositionX = $screenWidth - 20  # Align text with a margin from the right
-$textPositionY = $logoY + $logoHeight + 10  # Position text just below the logo with a margin
-$textPosition = New-Object System.Drawing.PointF($textPositionX, $textPositionY)
-
-# Draw the text on the image using StringFormat for right-alignment
-$graphics.DrawString($text, $font, $brush, $textPosition, $stringFormat)
+# Dispose of graphics and save the image
 $graphics.Dispose()
-
-# Save the new image
 $resizedImage.Save($outputWallpaperImage, [System.Drawing.Imaging.ImageFormat]::Png)
 $resizedImage.Dispose()
 $image.Dispose()
